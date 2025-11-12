@@ -299,24 +299,24 @@ export default function ChatPage() {
         }
     }
 
-    const openPhotoModal = async () => {
-        setShowPhotoModal(true)
-        setCapturedPhoto(null)
-        setCurrentText('')
-        await deleteAIResult()
+    // const openPhotoModal = async () => {
+    //     setShowPhotoModal(true)
+    //     setCapturedPhoto(null)
+    //     setCurrentText('')
+    //     await deleteAIResult()
         
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user' } 
-            })
-            streamRef.current = stream
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream
-            }
-        } catch (err) {
-            console.error('Error al acceder a la cámara:', err)
-        }
-    }
+    //     try {
+    //         const stream = await navigator.mediaDevices.getUserMedia({ 
+    //             video: { facingMode: 'user' } 
+    //         })
+    //         streamRef.current = stream
+    //         if (videoRef.current) {
+    //             videoRef.current.srcObject = stream
+    //         }
+    //     } catch (err) {
+    //         console.error('Error al acceder a la cámara:', err)
+    //     }
+    // }
 
     const closePhotoModal = () => {
         if (streamRef.current) {
