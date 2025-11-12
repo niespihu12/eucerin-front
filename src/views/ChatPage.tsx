@@ -428,12 +428,12 @@ export default function ChatPage() {
                         )}
                     </button>
 
-                    <button
+                    {/* <button
                         onClick={openPhotoModal}
                         className="w-full py-2 px-4 bg-[#A82342] hover:bg-[#8a1c34] text-white rounded-lg font-medium text-sm transition-colors duration-200"
                     >
                         Tomar Foto (Prueba)
-                    </button>
+                    </button> */}
                 </div>
             </div>
 
