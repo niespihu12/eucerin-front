@@ -15,7 +15,6 @@ export default function ChatPage() {
     const [showPhotoModal, setShowPhotoModal] = useState(false)
     const [countdown, setCountdown] = useState<number | null>(null)
     const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
-    const [isAutoCapturing, setIsAutoCapturing] = useState(false)
     const [cameraState, setCameraState] = useState(false)
     const [analisis, setAnalisis] = useState({
         "Manchas_Pigmentacion": { "Porcentaje": 0, "Presencia": "NO" },
@@ -72,7 +71,6 @@ export default function ChatPage() {
     }
 
     const initiateAutoCapture = async () => {
-        setIsAutoCapturing(true)
         setShowPhotoModal(true)
         setCapturedPhoto(null)
         setCurrentText('')
@@ -108,7 +106,6 @@ export default function ChatPage() {
         } catch (err) {
             console.error('Error al acceder a la cámara:', err)
             closePhotoModal()
-            setIsAutoCapturing(false)
         }
     }
 
@@ -208,12 +205,10 @@ export default function ChatPage() {
             console.log('Cámara reseteada:', resetResponse.ok)
 
             closePhotoModal()
-            setIsAutoCapturing(false)
             setCapturedPhoto(null)
         } catch (err) {
             console.error('Error al enviar foto a AI:', err)
             closePhotoModal()
-            setIsAutoCapturing(false)
             setCapturedPhoto(null)
         }
     }
@@ -381,11 +376,6 @@ export default function ChatPage() {
                 console.log('Foto capturada:', photo)
             }
         }
-    }
-
-    const retakePhoto = () => {
-        setCapturedPhoto(null)
-        setCountdown(null)
     }
 
     const hayLogo = () => {
