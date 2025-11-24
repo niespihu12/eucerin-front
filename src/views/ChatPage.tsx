@@ -8,7 +8,7 @@ export default function ChatPage() {
         onMessage: (message) => console.log('Mensaje recibido:', message),
         onError: (error) => console.error('Error en la conexión:', error)
     })
-    
+
     const [isTalking, setIsTalking] = useState(false)
     const [currentImage, setCurrentImage] = useState('logo.jpg')
     const [currentText, setCurrentText] = useState('')
@@ -17,11 +17,23 @@ export default function ChatPage() {
     const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
     const [isAutoCapturing, setIsAutoCapturing] = useState(false)
     const [cameraState, setCameraState] = useState(false)
-    
+    const [analisis, setAnalisis] = useState({
+        "Manchas_Pigmentacion": { "Porcentaje": 0, "Presencia": "NO" },
+        "Imperfecciones": { "Porcentaje": 0, "Presencia": "NO" },
+        "Bolsas_Ojeras": { "Porcentaje": 0, "Presencia": "NO" },
+        "Arrugas": { "Porcentaje": 0, "Presencia": "NO" }
+    })
+    const [skinData, setSkinData] = useState({
+        "Tipo_de_Piel": "",
+        "Edad_Aproximada": "",
+        "Zona": ""
+    })
+
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const streamRef = useRef<MediaStream | null>(null)
     const wsRef = useRef<WebSocket | null>(null)
+
     useEffect(() => {
         const checkCameraState = async () => {
             try {
@@ -29,7 +41,7 @@ export default function ChatPage() {
                     method: 'GET'
                 })
                 const data = await response.json()
-                
+
                 if (data.camera && !cameraState) {
                     setCameraState(true)
                     await initiateAutoCapture()
@@ -63,13 +75,13 @@ export default function ChatPage() {
         setIsAutoCapturing(true)
         setShowPhotoModal(true)
         setCapturedPhoto(null)
-        setCurrentText('') 
-        
+        setCurrentText('')
+
         await deleteAIResult()
-        
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user' } 
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user' }
             })
             streamRef.current = stream
             if (videoRef.current) {
@@ -82,7 +94,7 @@ export default function ChatPage() {
                     }
                     resolve(null)
                 }
-                
+
                 if (videoRef.current) {
                     if (videoRef.current.readyState >= 2) {
                         resolve(null)
@@ -128,7 +140,7 @@ export default function ChatPage() {
                 const photo = canvasRef.current.toDataURL('image/jpeg', 0.95)
                 setCapturedPhoto(photo)
                 console.log('Foto capturada automáticamente:', photo.substring(0, 50) + '...')
-                
+
                 setTimeout(() => {
                     sendPhotoToAI(photo)
                 }, 500)
@@ -145,23 +157,23 @@ export default function ChatPage() {
             const bstr = atob(arr[1])
             const n = bstr.length
             const u8arr = new Uint8Array(n)
-            
+
             for (let i = 0; i < n; i++) {
                 u8arr[i] = bstr.charCodeAt(i)
             }
-            
+
             const blob = new Blob([u8arr], { type: mime })
             console.log('Blob creado correctamente:', blob.size, 'bytes', 'tipo:', mime)
-            
+
             if (blob.size === 0) {
                 throw new Error('El blob está vacío')
             }
-            
+
             const formData = new FormData()
             formData.append('file', blob, 'photo.jpg')
 
             console.log('Enviando foto al servidor...')
-            
+
             const uploadResponse = await fetch('https://eucerin-production.up.railway.app/api/ai/', {
                 method: 'PUT',
                 body: formData
@@ -174,9 +186,17 @@ export default function ChatPage() {
 
             const data = await uploadResponse.json()
             console.log('Respuesta de AI:', data)
+            
             if (data.result) {
+                setSkinData({
+                    "Tipo_de_Piel": data.result.Tipo_de_Piel || "",
+                    "Edad_Aproximada": data.result.Edad_Aproximada || "",
+                    "Zona": data.result.Zona || ""
+                })
+                setAnalisis(data.result.Analisis || analisis)
                 setCurrentText("")
             }
+
             const resetResponse = await fetch('https://eucerin-production.up.railway.app/api/camara/', {
                 method: 'PUT',
                 headers: {
@@ -189,18 +209,29 @@ export default function ChatPage() {
 
             closePhotoModal()
             setIsAutoCapturing(false)
+            setCapturedPhoto(null)
         } catch (err) {
             console.error('Error al enviar foto a AI:', err)
             closePhotoModal()
             setIsAutoCapturing(false)
+            setCapturedPhoto(null)
         }
     }
+
+    useEffect(() => {
+        if (capturedPhoto) {
+            const timer = setTimeout(() => {
+                sendPhotoToAI(capturedPhoto)
+            }, 500)
+            return () => clearTimeout(timer)
+        }
+    }, [capturedPhoto])
 
     useEffect(() => {
         const connectWebSocket = () => {
             try {
                 const ws = new WebSocket('wss://eucerin.aosinternational.us')
-                
+
                 ws.onopen = () => {
                     console.log('Conectado al servidor WebSocket')
                     wsRef.current = ws
@@ -209,12 +240,12 @@ export default function ChatPage() {
                 ws.onmessage = (event) => {
                     try {
                         const data = JSON.parse(event.data)
-                        
+
                         if (data.image) {
                             console.log('Imagen recibida:', data.image)
                             setCurrentImage(data.image)
                         }
-                        
+
                         if (data.text) {
                             console.log('Texto recibido:', data.text)
                             setCurrentText(data.text)
@@ -276,6 +307,17 @@ export default function ChatPage() {
             setIsTalking(false)
             setCurrentImage('logo.jpg')
             setCurrentText('')
+            setAnalisis({
+                "Manchas_Pigmentacion": { "Porcentaje": 0, "Presencia": "NO" },
+                "Imperfecciones": { "Porcentaje": 0, "Presencia": "NO" },
+                "Bolsas_Ojeras": { "Porcentaje": 0, "Presencia": "NO" },
+                "Arrugas": { "Porcentaje": 0, "Presencia": "NO" }
+            })
+            setSkinData({
+                "Tipo_de_Piel": "",
+                "Edad_Aproximada": "",
+                "Zona": ""
+            })
             try {
                 await fetch('https://eucerin-production.up.railway.app/api/camara/', {
                     method: 'PUT',
@@ -298,25 +340,6 @@ export default function ChatPage() {
             startCall()
         }
     }
-
-    // const openPhotoModal = async () => {
-    //     setShowPhotoModal(true)
-    //     setCapturedPhoto(null)
-    //     setCurrentText('')
-    //     await deleteAIResult()
-        
-    //     try {
-    //         const stream = await navigator.mediaDevices.getUserMedia({ 
-    //             video: { facingMode: 'user' } 
-    //         })
-    //         streamRef.current = stream
-    //         if (videoRef.current) {
-    //             videoRef.current.srcObject = stream
-    //         }
-    //     } catch (err) {
-    //         console.error('Error al acceder a la cámara:', err)
-    //     }
-    // }
 
     const closePhotoModal = () => {
         if (streamRef.current) {
@@ -365,75 +388,118 @@ export default function ChatPage() {
         setCountdown(null)
     }
 
-    return (
-        <div className="w-full min-h-screen bg-gradient-to-br from-[#F8FAFC] to-[#E8F0F7] flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
-                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center gap-6">
-                    <div className="rounded-xl overflow-hidden shadow-md">
-                        <img 
-                            src={`./${currentImage}`} 
-                            alt="Producto Eucerin" 
-                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                        />
-                    </div>
-                    <h2 className="text-2xl font-bold text-[#273445]">
-                        Asesor Eucerin
-                    </h2>
-                    {currentText && (
-                        <p className="text-center text-[#202634] font-medium text-sm leading-relaxed max-w-xs">
-                            {currentText}
-                        </p>
-                    )}
-                    <p className="text-center text-[#36475E] text-sm font-medium">
-                        {isTalking ? 'Hablando con el asistente...' : 'Presiona el micrófono para comenzar'}
-                    </p>
-                    <button
-                        onClick={handleToggle}
-                        className={`p-6 rounded-full transition-all duration-200 text-white active:scale-90 shadow-lg cursor-pointer ${
-                            isTalking
-                                ? 'bg-[#A82342] hover:bg-[#8a1c34]'
-                                : 'bg-[#36475E] hover:bg-[#2a3747]'
-                        }`}
-                    >
-                        {isTalking ? (
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth={1.5}
-                                stroke="currentColor"
-                                className="w-8 h-8"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M15.75 3.75 18 6m0 0 2.25 2.25M18 6l2.25-2.25M18 6l-2.25 2.25m1.5 13.5c-8.284 0-15-6.716-15-15V4.5A2.25 2.25 0 0 1 4.5 2.25h1.372c.516 0 .966.351 1.091.852l1.106 4.423c.11.44-.054.902-.417 1.173l-1.293.97a1.062 1.062 0 0 0-.38 1.21 12.035 12.035 0 0 0 7.143 7.143c.441.162.928-.004 1.21-.38l.97-1.293a1.125 1.125 0 0 1 1.173-.417l4.423 1.106c.5.125.852.575.852 1.091V19.5a2.25 2.25 0 0 1-2.25 2.25h-2.25Z"
-                                />
-                            </svg>
-                        ) : (
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth={1.5}
-                                stroke="currentColor"
-                                className="w-8 h-8"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"
-                                />
-                            </svg>
-                        )}
-                    </button>
+    const hayLogo = () => {
+        return currentImage === 'logo.jpg' ? true : false
+    }
 
-                    {/* <button
-                        onClick={openPhotoModal}
-                        className="w-full py-2 px-4 bg-[#A82342] hover:bg-[#8a1c34] text-white rounded-lg font-medium text-sm transition-colors duration-200"
-                    >
-                        Tomar Foto (Prueba)
-                    </button> */}
+    return (
+        <div className="w-full bg-gradient-to-br from-[#F8FAFC] to-[#E8F0F7] grid grid-cols-1 md:grid-cols-3 grid-rows-auto md:grid-rows-2 gap-4 p-4">
+            <div className="md:row-span-2 bg-white rounded-2xl shadow-lg p-8 flex flex-col justify-center items-center gap-6">
+                <div className="rounded-xl overflow-hidden w-full">
+                    <img
+                        src={`./logo.jpg`}
+                        alt="Producto Eucerin"
+                        className="object-cover hover:scale-105 transition-transform duration-300 mx-auto"
+                    />
+                </div>
+                <h2 className="text-2xl font-bold text-[#273445]">
+                    Asesor Eucerin
+                </h2>
+                {currentText && (
+                    <p className="text-center text-[#202634] font-medium text-sm leading-relaxed max-w-xs">
+                        {currentText}
+                    </p>
+                )}
+                <p className="text-center text-[#36475E] text-sm font-medium">
+                    {isTalking ? 'Hablando con el asistente...' : 'Presiona el micrófono para comenzar'}
+                </p>
+                <button
+                    onClick={handleToggle}
+                    className={`p-6 rounded-full transition-all duration-200 text-white active:scale-90 shadow-lg cursor-pointer ${isTalking
+                        ? 'bg-[#A82342] hover:bg-[#8a1c34]'
+                        : 'bg-[#36475E] hover:bg-[#2a3747]'
+                        }`}
+                >
+                    {isTalking ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 3.75 18 6m0 0 2.25 2.25M18 6l2.25-2.25M18 6l-2.25 2.25m1.5 13.5c-8.284 0-15-6.716-15-15V4.5A2.25 2.25 0 0 1 4.5 2.25h1.372c.516 0 .966.351 1.091.852l1.106 4.423c.11.44-.054.902-.417 1.173l-1.293.97a1.062 1.062 0 0 0-.38 1.21 12.035 12.035 0 0 0 7.143 7.143c.441.162.928-.004 1.21-.38l.97-1.293a1.125 1.125 0 0 1 1.173-.417l4.423 1.106c.5.125.852.575.852 1.091V19.5a2.25 2.25 0 0 1-2.25 2.25h-2.25Z" />
+                        </svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+                        </svg>
+                    )}
+                </button>
+            </div>
+
+            <div className='bg-white rounded-2xl shadow-lg p-8 flex flex-col gap-6 h-full'>
+                <h2 className="text-[#36475E] text-2xl font-bold">Análisis de Piel</h2>
+                <p className='text-lg'>Evaluación completa del estado de tu piel</p>
+                <div className='flex flex-col md:flex-row md:justify-between md:items-center flex-wrap gap-4'>
+                    <div>
+                        <h3 className='text-base uppercase'>
+                            Tipo de Piel
+                        </h3>
+                        <p className='text-lg font-semibold'>{skinData.Tipo_de_Piel || "N/A"}</p>
+                    </div>
+                    <div>
+                        <h3 className='text-base uppercase'>
+                            Edad
+                        </h3>
+                        <p className='text-lg font-semibold'>
+                            {skinData.Edad_Aproximada || "N/A"}
+                        </p>
+                    </div>
+                    <div>
+                        <h3 className='text-base uppercase'>
+                            Zona
+                        </h3>
+                        <p className='text-lg font-semibold'>
+                            {skinData.Zona || "N/A"}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div className='bg-white rounded-2xl shadow-lg p-8 flex flex-col gap-6 h-full'>
+                <h2 className="text-[#36475E] text-2xl font-bold">Productos</h2>
+                {hayLogo() ? (
+                    <p>No hay productos aun</p>
+                ) : (
+                    <img
+                        src={`./${currentImage}`}
+                        alt="Producto Eucerin"
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    />
+                )}
+            </div>
+
+            <div className='md:col-span-2 bg-white rounded-2xl shadow-lg p-8 flex flex-col gap-6 h-full'>
+                <h2 className="text-[#36475E] text-2xl font-bold">Análisis Detallado</h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+                    {Object.entries(analisis).map(([key, value]) => (
+                        <div key={key} className="bg-gradient-to-br from-[#F8FAFC] to-[#E8F0F7] rounded-lg p-4 border-l-4 border-[#A82342]">
+                            <h3 className="text-[#273445] font-semibold text-sm mb-2">
+                                {key.replace(/_/g, ' ')}
+                            </h3>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-2xl font-bold text-[#A82342]">{value.Porcentaje}%</span>
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${value.Presencia === "SI"
+                                        ? 'bg-red-100 text-red-700'
+                                        : 'bg-green-100 text-green-700'
+                                    }`}>
+                                    {value.Presencia}
+                                </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                    className="bg-[#A82342] h-2 rounded-full transition-all duration-500"
+                                    style={{ width: `${value.Porcentaje}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -442,18 +508,16 @@ export default function ChatPage() {
                     <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
                         <div className="bg-[#36475E] text-white p-4 flex justify-between items-center">
                             <h3 className="text-lg font-bold">
-                                {isAutoCapturing ? 'Captura Automática' : 'Captura tu Foto'}
+                                Captura tu Foto
                             </h3>
-                            {!isAutoCapturing && (
-                                <button
-                                    onClick={closePhotoModal}
-                                    className="text-white hover:opacity-80 transition"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            )}
+                            <button
+                                onClick={closePhotoModal}
+                                className="text-white hover:opacity-80 transition"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
 
                         <div className="p-6 flex flex-col items-center gap-4">
@@ -465,12 +529,12 @@ export default function ChatPage() {
                                         playsInline
                                         className="w-full rounded-lg bg-black"
                                     />
-                                    
+
                                     {countdown !== null ? (
                                         <div className="text-6xl font-bold text-[#A82342] animate-pulse">
                                             {countdown === 0 ? '¡Foto!' : countdown}
                                         </div>
-                                    ) : !isAutoCapturing && (
+                                    ) : (
                                         <button
                                             onClick={startCountdown}
                                             className="w-full py-3 px-4 bg-[#A82342] hover:bg-[#8a1c34] text-white rounded-lg font-semibold transition-colors duration-200 flex items-center justify-center gap-2"
@@ -482,29 +546,22 @@ export default function ChatPage() {
                                         </button>
                                     )}
                                 </>
-                            ) : !isAutoCapturing && (
+                            ) : (
                                 <>
                                     <img
                                         src={capturedPhoto}
                                         alt="Foto capturada"
                                         className="w-full rounded-lg"
                                     />
-                                    <div className="flex gap-3 w-full">
-                                        <button
-                                            onClick={retakePhoto}
-                                            className="flex-1 py-2 px-4 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg font-semibold transition-colors duration-200"
-                                        >
-                                            Retomar
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                console.log('Foto enviada:', capturedPhoto)
-                                                sendPhotoToAI(capturedPhoto)
-                                            }}
-                                            className="flex-1 py-2 px-4 bg-[#A82342] hover:bg-[#8a1c34] text-white rounded-lg font-semibold transition-colors duration-200"
-                                        >
-                                            Enviar Foto
-                                        </button>
+                                    <div className="text-center">
+                                        <p className="text-[#36475E] font-medium text-sm mb-2">Enviando foto...</p>
+                                        <div className="flex justify-center">
+                                            <div className="animate-spin">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-[#A82342]">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                                </svg>
+                                            </div>
+                                        </div>
                                     </div>
                                 </>
                             )}
